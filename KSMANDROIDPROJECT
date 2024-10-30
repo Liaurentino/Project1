@@ -1,0 +1,100 @@
+const express = require('express');
+const mysql = require('mysql2/promise');
+
+const app = express();
+app.use(express.json()); 
+
+let connection;
+
+async function connectToDatabase() {
+        connection = await mysql.createConnection({
+            host: 'localhost',
+            user: 'root',
+            password: '',
+            database: 'projectandroid',
+        });
+        console.log('Database Berhasil Tersambung');
+    return connection;
+}
+
+// Menampilkan semua jadwal mata kuliah (READ)
+app.get('/Matkul', async (req, res) => {
+    try {
+        const connection = await connectToDatabase();
+        const [rows] = await connection.query('SELECT * FROM matkul');
+        res.json(rows);
+    } catch (err) {
+        console.error("Error fetching data:", err);
+        res.status(500).send("Server Error");
+    }
+});
+
+// Menampilkan satu jadwal berdasarkan kode matkul (READ)
+app.get('/Matkul/:KodeMatkul', async (req, res) => {
+    try {
+        const connection = await connectToDatabase();
+        const [rows] = await connection.query('SELECT * FROM matkul WHERE KodeMatkul = ?', [req.params.KodeMatkul]);
+        if (rows.length === 0) {
+            return res.status(404).send(`Matakuliah dengan Kode ${req.params.KodeMatkul} tidak ditemukan.`);
+        }
+        res.json(rows[0]);
+    } catch (err) {
+        console.error("Error fetching data:", err);
+        res.status(500).send("Server Error");
+    }
+});
+
+
+// Menambahkan jadwal mata kuliah baru (CREATE)
+app.post('/Matkul', async (req, res) => {
+    const { Matkul, Dosen, Hari } = req.body;
+
+    if (!Matkul || !Dosen || !Hari) {
+        return res.status(400).send("Semua field (Matkul, Dosen, Hari) harus diisi dan tidak boleh null.");
+    }
+
+    try {
+        const connection = await connectToDatabase();
+        const [result] = await connection.query('INSERT INTO matkul (Matkul, Dosen, Hari) VALUES (?, ?, ?)', [Matkul, Dosen, Hari]);
+        res.status(201).json({ KodeMatkul: result.insertId, Matkul, Dosen, Hari });
+    } catch (err) {
+        console.error("Error adding data:", err);
+        res.status(500).send("Server Error");
+    }
+});
+
+// Memperbarui jadwal mata kuliah berdasarkan kode matkul (UPDATE)
+app.put('/Matkul/:KodeMatkul', async (req, res) => {
+    const { Matkul, Dosen, Hari } = req.body;
+    try {
+        const connection = await connectToDatabase();
+        const [result] = await connection.query('UPDATE matkul SET Matkul = ?, Dosen = ?, Hari = ? WHERE KodeMatkul = ?', [Matkul, Dosen, Hari, req.params.KodeMatkul]);
+        if (result.affectedRows === 0) {
+            return res.status(404).send('Matakuliah tidak ditemukan');
+        }
+        res.json({ KodeMatkul: req.params.KodeMatkul, Matkul, Dosen, Hari });
+    } catch (err) {
+        console.error("Error updating data:", err);
+        res.status(500).send("Server Error");
+    }
+});
+
+// Menghapus jadwal mata kuliah berdasarkan kode matkul (DELETE)
+app.delete('/Matkul/:KodeMatkul', async (req, res) => {
+    try {
+        const connection = await connectToDatabase();
+        const [result] = await connection.query('DELETE FROM matkul WHERE KodeMatkul = ?', [req.params.KodeMatkul]);
+        if (result.affectedRows === 0) {
+            return res.status(404).send('Matakuliah tidak ditemukan');
+        }
+        res.send('Matakuliah dihapus');
+    } catch (err) {
+        console.error("Error deleting data:", err);
+        res.status(500).send("Server Error");
+    }
+});
+
+const PORT = 3000;
+app.listen(PORT, () => {
+    console.log(`Server berjalan di port ${PORT}`);
+});
